@@ -26,7 +26,8 @@ defmodule LWF.AutoVoting do
         second_sign_key: generate_keypair(config["secondphrase"]),
         net: config["net"] || @default_net,
         interval: config["interval"] || @interval,
-        buffers: parse_buffers(config["buffers"])
+        buffers: parse_buffers(config["buffers"]),
+        blacklist: config["blacklist"]
       }
 
       {:ok, state}
@@ -68,6 +69,7 @@ defmodule LWF.AutoVoting do
     Logger.info("Checking pool #{pool}.")
 
     with true <- is_active?(pool, prop),
+         false <- is_blacklisted?(pool, state.blacklist),
          true <- has_paid_in_time?(pool, prop, state) do
       {:noreply, state}
     else
@@ -109,6 +111,15 @@ defmodule LWF.AutoVoting do
   defp is_active?(pool, _prop) do
     Logger.warn("Pool #{pool} is not active. Skipping.")
     false
+  end
+
+  defp is_blacklisted?(pool, blacklist) do
+    if Enum.member?(blacklist, pool) do
+      Logger.warn("Pool #{pool} is blacklisted. Skipping.")
+      true
+    else
+      false
+    end
   end
 
   defp has_paid_in_time?(pool, prop, %{wallet: wallet, buffers: buffers}) do
