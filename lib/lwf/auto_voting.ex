@@ -25,6 +25,7 @@ defmodule LWF.AutoVoting do
         wallet: wallet,
         second_sign_key: generate_keypair(config["secondphrase"]),
         net: config["net"] || @default_net,
+        autounvote: config["autounvote"],
         interval: config["interval"] || @interval,
         buffers: parse_buffers(config["buffers"]),
         blacklist: config["blacklist"]
@@ -84,14 +85,19 @@ defmodule LWF.AutoVoting do
 
   def handle_info(:unvote, %{pool_queue: []} = state), do: {:noreply, state}
 
-  def handle_info(:unvote, state) do
-    print_votes(state.pool_queue)
+  def handle_info(:unvote, %{autounvote: true} = state) do
+    print_unvoted_pools(state.pool_queue)
     chunks = Enum.chunk_every(state.pool_queue, 25)
 
     Enum.each(chunks, fn chunk ->
       send(self(), {:unvote_chunk, chunk})
     end)
 
+    {:noreply, state}
+  end
+
+  def handle_info(:unvote, state) do
+    print_bad_pools(state.pool_queue)
     {:noreply, state}
   end
 
@@ -230,10 +236,14 @@ defmodule LWF.AutoVoting do
     Enum.each(pools, fn {k, _v} -> Logger.info("- #{k}") end)
   end
 
-  defp print_votes([]), do: true
-
-  defp print_votes(pools) do
+  defp print_unvoted_pools(pools) do
     Logger.error("Unvoting the following pools:")
+    Enum.each(pools, fn {name, _} -> Logger.error("- #{name}") end)
+  end
+
+  defp print_bad_pools(pools) do
+    msg = "Bad pools detected! You should either enable autounvoting or unvote them manually:"
+    Logger.error(msg)
     Enum.each(pools, fn {name, _} -> Logger.error("- #{name}") end)
   end
 
