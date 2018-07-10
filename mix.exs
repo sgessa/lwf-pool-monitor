@@ -25,7 +25,7 @@ defmodule LWF.MixProject do
       {:distillery, "~> 1.5", runtime: false},
       {:httpoison, "~> 1.0"},
       {:jason, "~> 1.0"},
-      {:dpos, "~> 0.2.0"}
+      {:dpos, "~> 0.2.1"}
     ]
   end
 end

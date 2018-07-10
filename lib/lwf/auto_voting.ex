@@ -3,7 +3,6 @@ defmodule LWF.AutoVoting do
   require Logger
 
   @config_path "config.json"
-  @default_net "lwf"
   # interval expressed in seconds
   @interval 30
   # buffers expressed in hours
@@ -14,25 +13,12 @@ defmodule LWF.AutoVoting do
   end
 
   def init(:ok) do
-    with {:ok, file} <- File.read(@config_path),
-         {:ok, config} <- Jason.decode(file),
-         wallet <- Dpos.Wallet.generate_lwf(config["passphrase"]) do
-      send(self(), :fetch_pools)
-      send(self(), :work)
+    case load_config() do
+      {:ok, state} ->
+        send(self(), :fetch_pools)
+        send(self(), :work)
+        {:ok, state}
 
-      state = %{
-        pool_queue: [],
-        wallet: wallet,
-        second_sign_key: generate_keypair(config["secondphrase"]),
-        net: config["net"] || @default_net,
-        autounvote: config["autounvote"],
-        interval: config["interval"] || @interval,
-        buffers: parse_buffers(config["buffers"]),
-        blacklist: config["blacklist"]
-      }
-
-      {:ok, state}
-    else
       error ->
         print_error(error)
         :ignore
@@ -40,8 +26,17 @@ defmodule LWF.AutoVoting do
   end
 
   def handle_info(:fetch_pools, state) do
-    voted_delegates = LWF.votes(state.wallet.address)
+    voted_delegates = LWF.votes(state.wallet.address, state.net)
     proposals = LWF.proposals()
+
+    pools =
+      Enum.each(voted_delegates, fn name ->
+        unless proposals[name] do
+          Logger.warn(
+            "Delegate #{name} hasn't submitted a proposal yet. Please consider to unvote him."
+          )
+        end
+      end)
 
     pools =
       proposals
@@ -67,8 +62,6 @@ defmodule LWF.AutoVoting do
   end
 
   def handle_info({:check_pool, pool, prop}, state) do
-    Logger.info("Checking pool #{pool}.")
-
     with true <- is_active?(pool, prop),
          false <- is_blacklisted?(pool, state.blacklist),
          true <- has_paid_in_time?(pool, prop, state) do
@@ -102,7 +95,7 @@ defmodule LWF.AutoVoting do
   end
 
   def handle_info({:unvote_chunk, chunk}, state) do
-    case send_tx(state, chunk) do
+    case LWF.broadcast(state, chunk) do
       :ok ->
         pool_queue = state.pool_queue -- chunk
         {:noreply, %{state | pool_queue: pool_queue}}
@@ -128,23 +121,23 @@ defmodule LWF.AutoVoting do
     end
   end
 
-  defp has_paid_in_time?(pool, prop, %{wallet: wallet, buffers: buffers}) do
+  defp has_paid_in_time?(pool, prop, %{wallet: wallet, buffers: buffers, net: net}) do
     payout_address = prop["payout_address"]
     my_address = wallet.address
 
     params = "?senderId=#{payout_address}&orderBy=timestamp:desc"
 
-    with {:ok, txs} <- LWF.transactions(params),
+    with {:ok, txs} <- LWF.transactions(params, net),
          true <- check_payout_tx(prop, my_address, txs, buffers) do
       Logger.info("Pool #{pool} has paid in time.")
       true
     else
       false ->
-        Logger.error("Pool #{pool} hasn't paid in time. Unvoting.")
+        Logger.warn("Pool #{pool} hasn't paid in time.")
         :unvote
 
       {:error, _msg} ->
-        Logger.warn("Unable to reach node. Skipping.")
+        Logger.error("Unable to reach node. Skipping.")
         false
     end
   end
@@ -188,33 +181,6 @@ defmodule LWF.AutoVoting do
     end
   end
 
-  defp send_tx(%{wallet: wallet, net: net} = state, pools) do
-    votes = Enum.map(pools, fn {_, key} -> "-" <> key end)
-
-    tx =
-      Dpos.Tx.Vote.build(%{
-        fee: 100_000_000,
-        timestamp: Dpos.Time.now(),
-        senderPublicKey: wallet.pub_key,
-        recipientId: wallet.address,
-        asset: %{votes: votes}
-      })
-      |> Dpos.Tx.sign(wallet, state.second_sign_key)
-
-    case Dpos.Net.broadcast(tx, net) do
-      {:error, %HTTPoison.Error{reason: r}} ->
-        Logger.error("TX error: #{inspect(r)}")
-        :error
-
-      {:error, err} ->
-        Logger.error("TX error: #{inspect(err)}")
-        :error
-
-      _ ->
-        :ok
-    end
-  end
-
   defp generate_keypair(""), do: nil
   defp generate_keypair(nil), do: nil
 
@@ -237,14 +203,33 @@ defmodule LWF.AutoVoting do
   end
 
   defp print_unvoted_pools(pools) do
-    Logger.error("Unvoting the following pools:")
-    Enum.each(pools, fn {name, _} -> Logger.error("- #{name}") end)
+    Logger.warn("Unvoting the following pools:")
+    Enum.each(pools, fn {name, _} -> Logger.warn("- #{name}") end)
   end
 
   defp print_bad_pools(pools) do
-    msg = "Bad pools detected! You should either enable autounvoting or unvote them manually:"
-    Logger.error(msg)
-    Enum.each(pools, fn {name, _} -> Logger.error("- #{name}") end)
+    msg = "Bad pools detected! You should either unvote them manually or enable auto unvoting:"
+    Logger.warn(msg)
+    Enum.each(pools, fn {name, _} -> Logger.warn("- #{name}") end)
+  end
+
+  defp load_config() do
+    with {:ok, file} <- File.read(@config_path),
+         {:ok, config} <- Jason.decode(file),
+         wallet <- Dpos.Wallet.generate_lwf(config["passphrase"]) do
+      state = %{
+        pool_queue: [],
+        wallet: wallet,
+        second_sign_key: generate_keypair(config["secondphrase"]),
+        net: config["net"],
+        autounvote: config["autounvote"],
+        interval: config["interval"] || @interval,
+        buffers: parse_buffers(config["buffers"]),
+        blacklist: config["blacklist"]
+      }
+
+      {:ok, state}
+    end
   end
 
   defp print_error({:error, :enoent}) do
