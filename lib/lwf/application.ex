@@ -9,7 +9,7 @@ defmodule LWF.Application do
     # List all child processes to be supervised
     children = [
       # Starts a worker by calling: LWF.Worker.start_link(arg)
-      {LWF.AutoVoting, []}
+      {LWF.Monitor, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

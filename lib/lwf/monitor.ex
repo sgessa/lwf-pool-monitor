@@ -1,4 +1,4 @@
-defmodule LWF.AutoVoting do
+defmodule LWF.Monitor do
   use GenServer
   require Logger
 
@@ -26,21 +26,16 @@ defmodule LWF.AutoVoting do
   end
 
   def handle_info(:fetch_pools, state) do
-    voted_delegates = LWF.votes(state.wallet.address, state.net)
+    voted_pools = LWF.votes(state.wallet.address, state.net)
     proposals = LWF.proposals()
 
-    pools =
-      Enum.each(voted_delegates, fn name ->
-        unless proposals[name] do
-          Logger.warn(
-            "Delegate #{name} hasn't submitted a proposal yet. Please consider to unvote him."
-          )
-        end
-      end)
+    Enum.each(voted_pools, fn name ->
+      unless proposals[name], do: Logger.warn("Delegate #{name} hasn't submitted a proposal yet.")
+    end)
 
     pools =
       proposals
-      |> Map.take(voted_delegates)
+      |> Map.take(voted_pools)
       |> Enum.filter(fn {_, prop} -> prop["delegate_type"] != 'public_pool' end)
 
     print_pools(pools)
@@ -79,7 +74,8 @@ defmodule LWF.AutoVoting do
   def handle_info(:unvote, %{pool_queue: []} = state), do: {:noreply, state}
 
   def handle_info(:unvote, %{autounvote: true} = state) do
-    print_unvoted_pools(state.pool_queue)
+    print_bad_pools("Unvoting the following pools:", state.pool_queue)
+
     chunks = Enum.chunk_every(state.pool_queue, 25)
 
     Enum.each(chunks, fn chunk ->
@@ -90,7 +86,9 @@ defmodule LWF.AutoVoting do
   end
 
   def handle_info(:unvote, state) do
-    print_bad_pools(state.pool_queue)
+    "Bad pools detected! You should either unvote them manually or enable auto unvoting:"
+    |> print_bad_pools(state.pool_queue)
+
     {:noreply, state}
   end
 
@@ -142,9 +140,7 @@ defmodule LWF.AutoVoting do
     end
   end
 
-  defp check_payout_tx(_prop, _rcpt, []) do
-    false
-  end
+  defp check_payout_tx(_prop, _rcpt, [], _buffers), do: false
 
   defp check_payout_tx(prop, rcpt, txs, buffers) do
     tx = Enum.find(txs, fn t -> t["recipientId"] == rcpt end)
@@ -199,18 +195,20 @@ defmodule LWF.AutoVoting do
 
   defp print_pools(pools) do
     Logger.info("Loading pools:")
-    Enum.each(pools, fn {k, _v} -> Logger.info("- #{k}") end)
+
+    Enum.reduce(pools, 1, fn {k, _v}, idx ->
+      Logger.info("#{idx}) #{k}")
+      idx + 1
+    end)
   end
 
-  defp print_unvoted_pools(pools) do
-    Logger.warn("Unvoting the following pools:")
-    Enum.each(pools, fn {name, _} -> Logger.warn("- #{name}") end)
-  end
-
-  defp print_bad_pools(pools) do
-    msg = "Bad pools detected! You should either unvote them manually or enable auto unvoting:"
+  defp print_bad_pools(msg, pools) do
     Logger.warn(msg)
-    Enum.each(pools, fn {name, _} -> Logger.warn("- #{name}") end)
+
+    Enum.reduce(pools, 1, fn {k, _v}, idx ->
+      Logger.warn("#{idx}) #{k}")
+      idx + 1
+    end)
   end
 
   defp load_config() do
