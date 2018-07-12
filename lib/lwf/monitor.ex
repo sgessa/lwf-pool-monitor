@@ -4,7 +4,7 @@ defmodule LWF.Monitor do
 
   @config_path "config.json"
   # interval expressed in seconds
-  @interval 30
+  @interval 300
   # buffers expressed in hours
   @buffers %{"daily" => 12, "weekly" => 24, "monthly" => 48}
 
@@ -27,7 +27,7 @@ defmodule LWF.Monitor do
 
   def handle_info(:fetch_pools, state) do
     voted_pools = LWF.votes(state.wallet.address, state.net)
-    proposals = LWF.proposals()
+    proposals = LWF.proposals(state.net)
 
     Enum.each(voted_pools, fn name ->
       unless proposals[name], do: Logger.warn("Delegate #{name} hasn't submitted a proposal yet.")
