@@ -16,7 +16,6 @@ defmodule LWF.Monitor do
     case load_config() do
       {:ok, state} ->
         send(self(), :fetch_pools)
-        send(self(), :work)
         {:ok, state}
 
       error ->
@@ -26,6 +25,8 @@ defmodule LWF.Monitor do
   end
 
   def handle_info(:fetch_pools, state) do
+    clear_screen()
+
     voted_pools = LWF.votes(state.wallet.address, state.net)
     proposals = LWF.proposals(state.net)
 
@@ -40,6 +41,8 @@ defmodule LWF.Monitor do
 
     print_pools(pools)
 
+    send(self(), :work)
+
     {:noreply, Map.put(state, :pools, pools)}
   end
 
@@ -51,7 +54,6 @@ defmodule LWF.Monitor do
     send(self(), :unvote)
 
     Process.send_after(self(), :fetch_pools, state.interval * 1000)
-    Process.send_after(self(), :work, state.interval * 1000)
 
     {:noreply, state}
   end
@@ -131,7 +133,7 @@ defmodule LWF.Monitor do
       true
     else
       false ->
-        Logger.warn("✗ Pool #{pool} hasn't paid in time.")
+        Logger.warn("✖ Pool #{pool} hasn't paid in time.")
         :unvote
 
       {:error, _msg} ->
@@ -185,30 +187,6 @@ defmodule LWF.Monitor do
     sk
   end
 
-  defp parse_buffers(nil), do: @buffers
-
-  defp parse_buffers(buffers) when is_map(buffers) do
-    Map.merge(@buffers, buffers)
-  end
-
-  defp print_pools([]), do: true
-
-  defp print_pools(pools) do
-    Logger.info("Loading pools:")
-
-    Enum.each(pools, fn {k, _v} ->
-      Logger.info("• #{k}")
-    end)
-  end
-
-  defp print_bad_pools(msg, pools) do
-    Logger.warn(msg)
-
-    Enum.each(pools, fn {k, _v} ->
-      Logger.warn("• #{k}")
-    end)
-  end
-
   defp load_config() do
     with {:ok, file} <- File.read(@config_path),
          {:ok, config} <- Jason.decode(file),
@@ -226,6 +204,32 @@ defmodule LWF.Monitor do
 
       {:ok, state}
     end
+  end
+
+  defp parse_buffers(nil), do: @buffers
+
+  defp parse_buffers(buffers) when is_map(buffers) do
+    Map.merge(@buffers, buffers)
+  end
+
+  defp clear_screen(), do: IO.write("\e[0;0H\e[2J")
+
+  defp print_pools([]), do: true
+
+  defp print_pools(pools) do
+    Logger.info("Loading pools:")
+
+    Enum.each(pools, fn {k, _v} ->
+      Logger.info("• #{k}")
+    end)
+  end
+
+  defp print_bad_pools(msg, pools) do
+    Logger.warn(msg)
+
+    Enum.each(pools, fn {k, _v} ->
+      Logger.warn("• #{k}")
+    end)
   end
 
   defp print_error({:error, :enoent}) do
