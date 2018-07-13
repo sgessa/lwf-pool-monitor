@@ -9,9 +9,9 @@ defmodule LWF do
 
     with {:ok, response} <- HTTPoison.get(url),
          200 <- response.status_code,
-         {:ok, res} <- Jason.decode(response.body),
-         true <- res["success"] do
-      {:ok, res["transactions"]}
+         {:ok, results} <- Jason.decode(response.body),
+         true <- results["success"] do
+      {:ok, results["transactions"]}
     else
       err -> err
     end
@@ -22,10 +22,12 @@ defmodule LWF do
 
     with {:ok, response} <- HTTPoison.get(url),
          200 <- response.status_code,
-         {:ok, results} <- Jason.decode(response.body) do
+         {:ok, results} <- Jason.decode(response.body),
+         true <- results["success"] do
       Enum.map(results["delegates"], fn d -> d["username"] end)
     else
       _err ->
+        Logger.error("Unable to fetch voted delegates.")
         []
     end
   end
@@ -46,7 +48,7 @@ defmodule LWF do
       results["delegates"] || %{}
     else
       _err ->
-        Logger.error("Unable to fetch proposals for network #{net["name"]}.")
+        Logger.error("Unable to fetch proposals.")
         %{}
     end
   end
