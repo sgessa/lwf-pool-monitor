@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION="0.1.1"
+VERSION="0.1.2"
 RELEASE_URL="https://github.com/sgessa/lwf-pool-monitor/releases/download/v$VERSION/lwf-pool-monitor-linux-amd64.tar.gz"
 DST="$HOME/lwf-pool-monitor.tar.gz"
 
