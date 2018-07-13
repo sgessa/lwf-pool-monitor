@@ -30,7 +30,7 @@ defmodule LWF.Monitor do
     proposals = LWF.proposals(state.net)
 
     Enum.each(voted_pools, fn name ->
-      unless proposals[name], do: Logger.warn("Delegate #{name} hasn't submitted a proposal yet.")
+      unless proposals[name], do: Logger.warn("⚡ Delegate #{name} hasn't submitted a proposal.")
     end)
 
     pools =
@@ -127,11 +127,11 @@ defmodule LWF.Monitor do
 
     with {:ok, txs} <- LWF.transactions(params, net),
          true <- check_payout_tx(prop, my_address, txs, buffers) do
-      Logger.info("Pool #{pool} has paid in time.")
+      Logger.info("✓ Pool #{pool} has paid in time.")
       true
     else
       false ->
-        Logger.warn("Pool #{pool} hasn't paid in time.")
+        Logger.warn("✗ Pool #{pool} hasn't paid in time.")
         :unvote
 
       {:error, _msg} ->
@@ -196,18 +196,16 @@ defmodule LWF.Monitor do
   defp print_pools(pools) do
     Logger.info("Loading pools:")
 
-    Enum.reduce(pools, 1, fn {k, _v}, idx ->
-      Logger.info("#{idx}) #{k}")
-      idx + 1
+    Enum.each(pools, fn {k, _v} ->
+      Logger.info("• #{k}")
     end)
   end
 
   defp print_bad_pools(msg, pools) do
     Logger.warn(msg)
 
-    Enum.reduce(pools, 1, fn {k, _v}, idx ->
-      Logger.warn("#{idx}) #{k}")
-      idx + 1
+    Enum.each(pools, fn {k, _v} ->
+      Logger.warn("• #{k}")
     end)
   end
 
