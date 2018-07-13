@@ -5,15 +5,14 @@ RELEASE_URL="https://github.com/sgessa/lwf-pool-monitor/releases/download/v$VERS
 DST="$HOME/lwf-pool-monitor.tar.gz"
 
 cat << 'EOF'
+                 __      ____    __    ____  _______
+                |  |     \   \  /  \  /   / |   ____|
+                |  |      \   \/    \/   /  |  |__
+                |  |       \            /   |   __|
+                |  `----.   \    /\    /    |  |
+                |_______|    \__/  \__/     |__|
 
-                         __      ____    __    ____  _______
-                        |  |     \   \  /  \  /   / |   ____|
-                        |  |      \   \/    \/   /  |  |__
-                        |  |       \            /   |   __|
-                        |  `----.   \    /\    /    |  |
-                        |_______|    \__/  \__/     |__|
-
-                                 LWF Pool Monitor
+                         LWF Pool Monitor
 EOF
 
 echo
@@ -24,18 +23,20 @@ echo "Created by LWF team and dwildcash"
 echo "-------------------------------------------------------"
 echo
 
-# Function to install All Prereq
-install_prereq() {
-  if [[ ! -f /usr/bin/sudo ]]; then
-    echo "Install sudo before continuing. Issue: apt-get install sudo as root user."
-    echo "Also make sure that your user has sudo access."
+install_deps() {
+  if [ ! -f /usr/bin/sudo ]; then
+    echo "Install sudo before continuing. Run 'apt-get install sudo' as root user. Exiting."
+    exit 1
   fi
 
-  sudo id &> /dev/null || { exit 1; };
+  if ! sudo id &> /dev/null; then
+    echo "Unable to gain root privileges. Exiting."
+    exit 1
+  fi
 
   DISTRO=$(awk '/^ID=/' /etc/*-release | awk -F'=' '{ print tolower($2) }')
   if [ $DISTRO != "ubuntu" ]; then
-    echo "At this time only Ubuntu is supported. Exiting." && exit 1;
+    echo "At this time only Ubuntu is supported. Exiting." && exit 1
   fi
 
   OS_VER=$(lsb_release -r -s)
@@ -59,7 +60,6 @@ install_prereq() {
   return 0
 }
 
-# Function Generating the config file
 function generate_config() {
   # Backup file if already present
   if [ -f config.json ]; then
@@ -71,17 +71,13 @@ function generate_config() {
   echo "Please answer all questions to generate a new configuration file:"
   echo
 
-  read -e -p "Enter your passphrase (12 word): " passphrase < /dev/tty
-
+  read -e -p "Enter your passphrase (12 words): " passphrase < /dev/tty
   read -e -p "Enter check interval in seconds: " -i 300 interval < /dev/tty
-
   read -e -p "Enter network name (lwf, lwf-t): " -i "lwf" network < /dev/tty
-
   read -e -p "Enter relay node host: " -i "node1.lwf.io" node_host < /dev/tty
-
   read -e -p "Enter relay node port: " -i "18124" node_port < /dev/tty
 
-cat > config.json <<EOF
+cat > lwf-pool-monitor/config.json <<EOF
 {
   "passphrase": "$passphrase",
   "secondphrase": "",
@@ -106,8 +102,8 @@ EOF
   return 0
 }
 
-# Installing Prereq
-install_prereq
+# Installing deps
+install_deps
 
 # Download release from github in the user HOME directory
 wget $RELEASE_URL -O $DST -q --show-progress
@@ -129,9 +125,6 @@ else
   exit 1
 fi
 
-cd ./lwf-pool-monitor
-
-# Generate configuration file
 generate_config
 
 echo
