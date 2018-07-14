@@ -14,7 +14,7 @@ Checks performed:
 
 Run as user with sudo privileges:
 
-`curl -s https://raw.githubusercontent.com/sgessa/lwf-pool-monitor/master/install.sh | bash`
+`bash <(curl -s https://raw.githubusercontent.com/sgessa/lwf-pool-monitor/master/install.sh)`
 
 The installer will download the latest release and will extract it automatically in the user home directory.
 
@@ -45,6 +45,14 @@ Logs can be found inside `./var/log`
 ## Authors
 
 * **Stefano Gessa** ([GitHub](https://github.com/sgessa) ~ [LD](https://www.linkedin.com/in/stefanogessa) ~ [LWF](https://explorer.lwf.io/address/6064457646976649022LWF))
+
+## Special Thanks
+
+* **dwildcash** ([GitHub](https://github.com/dwildcash))
+* **jamiec79**
+* **PWNDrew**
+* **goat**
+* **bisu**
 
 ## License
 
